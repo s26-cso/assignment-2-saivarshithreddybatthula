@@ -93,9 +93,9 @@ loop_print:
     jmp loop_print
 
 end:
-    lea rdi, [rel nl]
-    xor rax, rax
-    call printf
+ mov rdi, nl
+xor rax, rax
+call printf
 
     mov rsp, rbp
     pop rbp

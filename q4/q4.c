@@ -1,23 +1,27 @@
-#include <stdio.h>
-#include <dlfcn.h>
-#include <string.h>
+#include <stdio.h>      // input/output
+#include <dlfcn.h>      // dlopen, dlsym, dlclose
 
 int main() {
-    char op[10];
-    int num1, num2;
+    char funcName[32];      // operation name
+    int x, y;               // operands
 
-    while (scanf("%s %d %d", op, &num1, &num2) == 3) {
+    while (scanf("%s %d %d", funcName, &x, &y) == 3) {
+        char libPath[64];                       // library path
+        sprintf(libPath, "./lib%s.so", funcName);
 
-        char libname[20] = "lib";
-        strcat(libname, op);
-        strcat(libname, ".so");
+        void *libHandle = dlopen(libPath, RTLD_LAZY);
+        if (!libHandle) {
+            printf("library not found\n");
+            continue;
+        }
 
-        void* handle = dlopen(libname, RTLD_LAZY);
-        int (*func)(int, int) = dlsym(handle, op);
+        int (*operation)(int, int);             // function pointer
+        operation = (int (*)(int, int)) dlsym(libHandle, funcName);
 
-        printf("%d\n", func(num1, num2));
+        int result = operation(x, y);           // call function
+        printf("%d\n", result);
 
-        dlclose(handle);
+        dlclose(libHandle);                     // close library
     }
 
     return 0;

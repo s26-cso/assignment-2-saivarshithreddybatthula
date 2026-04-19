@@ -1,93 +1,84 @@
-.text
-.globl main
-
+.section .data
+filename: .string "input.txt"     # file
+yes: .string "Yes\n"              # yes
+no: .string "No\n"                # no
+.section .text
+.global main
+.extern open
+.extern read
+.extern lseek
+.extern close
+.extern printf
 main:
-    sub     rsp, 16             # allocate 2 bytes on stack for left_c, right_c
-
-    # Open "input.txt"
-    mov     rax, 2
-    lea     rdi, [rip + fname]
-    mov     rsi, 0
-    syscall
-    mov     r8, rax             # r8 = fd
-
-    # Get file size
-    mov     rax, 8
-    mov     rdi, r8
-    mov     rsi, 0
-    mov     rdx, 2              # SEEK_END
-    syscall
-    mov     r9, rax             # r9 = size
-
-    # Seek back to start
-    mov     rax, 8
-    mov     rdi, r8
-    mov     rsi, 0
-    mov     rdx, 0
-    syscall
-
-    mov     r10, 0              # left = 0
-    mov     r11, r9
-    dec     r11                 # right = size - 1
-
+addi sp, sp, -48                  # sp = sp - 48
+sd x1, 40(sp)                     # save x1
+sd x20, 32(sp)                    # save x20
+sd x21, 24(sp)                    # save x21
+# open file
+la x10, filename                  # x10 = filename
+addi x11, x0, 0                   # x11 = O_RDONLY
+call open                         # open
+addi x20, x10, 0                  # x20 = fd
+# get size
+addi x10, x20, 0                  # x10 = fd
+addi x11, x0, 0                   # x11 = offset 0
+addi x12, x0, 2                   # x12 = SEEK_END
+call lseek                        # lseek to end
+addi x21, x10, 0                  # x21 = size
+addi x6, x21, -1                  # x6 = right = size-1
+# check newline at end
+addi x10, x20, 0                  # x10 = fd
+addi x11, x6, 0                   # x11 = offset
+addi x12, x0, 0                   # x12 = SEEK_SET
+call lseek                        # seek to last char
+addi x10, x20, 0                  # x10 = fd
+addi x11, sp, 0                   # x11 = buffer
+addi x12, x0, 1                   # x12 = 1
+call read                         # read 1 byte
+lbu x9, 0(sp)                     # x9 = last char
+addi x28, x0, 10                  # x28 = '\n'
+bne x9, x28, set_right            # if not newline skip
+addi x6, x6, -1                   # right--
+set_right:
+addi x5, x0, 0                    # x5 = left = 0
 loop:
-    cmp     r10, r11
-    jge     yes
-
-    # Read left char into rsp
-    mov     rax, 8
-    mov     rdi, r8
-    mov     rsi, r10
-    mov     rdx, 0
-    syscall
-    mov     rax, 0
-    mov     rdi, r8
-    mov     rsi, rsp
-    mov     rdx, 1
-    syscall
-
-    # Read right char into rsp+1
-    mov     rax, 8
-    mov     rdi, r8
-    mov     rsi, r11
-    mov     rdx, 0
-    syscall
-    mov     rax, 0
-    mov     rdi, r8
-    lea     rsi, [rsp+1]
-    mov     rdx, 1
-    syscall
-
-    # Compare
-    mov     al, [rsp]
-    mov     bl, [rsp+1]
-    cmp     al, bl
-    jne     no
-
-    inc     r10
-    dec     r11
-    jmp     loop
-
-yes:
-    mov     rax, 1
-    mov     rdi, 1
-    lea     rsi, [rip + yes_str]
-    mov     rdx, 4
-    syscall
-    jmp     exit
-
-no:
-    mov     rax, 1
-    mov     rdi, 1
-    lea     rsi, [rip + no_str]
-    mov     rdx, 3
-    syscall
-
-exit:
-    mov     rax, 60
-    xor     rdi, rdi
-    syscall
-
-fname:    .asciz "input.txt"
-yes_str:  .ascii "Yes\n"
-no_str:   .ascii "No\n"
+bge x5, x6, is_pal                # if left >= right done
+# read left char
+addi x10, x20, 0                  # x10 = fd
+addi x11, x5, 0                   # x11 = left offset
+addi x12, x0, 0                   # x12 = SEEK_SET
+call lseek                        # seek to left
+addi x10, x20, 0                  # x10 = fd
+addi x11, sp, 0                   # x11 = buffer
+addi x12, x0, 1                   # x12 = 1
+call read                         # read left char
+lbu x7, 0(sp)                     # x7 = left char
+# read right char
+addi x10, x20, 0                  # x10 = fd
+addi x11, x6, 0                   # x11 = right offset
+addi x12, x0, 0                   # x12 = SEEK_SET
+call lseek                        # seek to right
+addi x10, x20, 0                  # x10 = fd
+addi x11, sp, 0                   # x11 = buffer
+addi x12, x0, 1                   # x12 = 1
+call read                         # read right char
+lbu x8, 0(sp)                     # x8 = right char
+bne x7, x8, not_pal               # if not equal not palindrome
+addi x5, x5, 1                    # left++
+addi x6, x6, -1                   # right--
+beq x0, x0, loop                  # goto loop
+is_pal:
+la x10, yes                       # x10 = yes
+call printf                       # print yes
+beq x0, x0, done                  # goto done
+not_pal:
+la x10, no                        # x10 = no
+call printf                       # print no
+done:
+addi x10, x20, 0                  # x10 = fd
+call close                        # close file
+ld x21, 24(sp)                    # load x21
+ld x20, 32(sp)                    # load x20
+ld x1, 40(sp)                     # load x1
+addi sp, sp, 48                   # sp = sp + 48
+ret                               # return

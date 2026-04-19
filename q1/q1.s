@@ -1,117 +1,140 @@
-.text
-
 .globl make_node
 make_node:
-    push    rbx
-    mov     ebx, edi        # save val
-
-    mov     edi, 24         # malloc(24)
-    call    malloc
-
-    mov     [rax], ebx      # node->val = val
-    mov     qword [rax+8],  0   # node->left = NULL
-    mov     qword [rax+16], 0   # node->right = NULL
-
-    pop     rbx
+    addi sp, sp, -16
+    sd t0, 8(sp)             # save t0
+    sd a0, 0(sp)             # save val on stack
+    addi a0, zero, 24        # a0 = 24
+    call malloc
+    ld t1, 0(sp)             # load val
+    sw t1, 0(a0)             # store val
+    sd zero, 8(a0)           # left = 0
+    sd zero, 16(a0)          # right = 0
+    ld t0, 8(sp)             # restore t0
+    addi sp, sp, 16
     ret
 
 
 .globl insert
 insert:
-    push    rbx
-    push    r12
-    push    r13
+    # a0 = root
+    # a1 = val
 
-    mov     rbx, rdi        # rbx = root
-    mov     r12d, esi       # r12d = val
+    bne a0, zero, check
 
-    test    rbx, rbx
-    jnz     not_null
+    addi sp, sp, -16
+    sd t0, 8(sp)
+    addi a0, a1, 0
+    call make_node
+    ld t0, 8(sp)
+    addi sp, sp, 16
+    ret
 
-    mov     edi, r12d
-    call    make_node
-    jmp     insert_done
+check:
+    lw t2, 0(a0)             # root->val
 
-not_null:
-    cmp     r12d, [rbx]     # compare val with root->val
-    je      insert_done_root
-    jl      go_left
+    beq a1, t2, equal
+    blt a1, t2, left
 
-    mov     rdi, [rbx+16]   # right child
-    mov     esi, r12d
-    call    insert
-    mov     [rbx+16], rax
-    mov     rax, rbx
-    jmp     insert_done
+right:
+    addi sp, sp, -24
+    sd t0, 16(sp)
+    sd a0, 8(sp)
 
-go_left:
-    mov     rdi, [rbx+8]    # left child
-    mov     esi, r12d
-    call    insert
-    mov     [rbx+8], rax
-    mov     rax, rbx
-    jmp     insert_done
+    ld a0, 16(a0)            # go right
+    call insert
 
-insert_done_root:
-    mov     rax, rbx
+    ld t3, 8(sp)
+    sd a0, 16(t3)            # update right
+    addi a0, t3, 0
 
-insert_done:
-    pop     r13
-    pop     r12
-    pop     rbx
+    ld t0, 16(sp)
+    addi sp, sp, 24
+    ret
+
+left:
+    addi sp, sp, -24
+    sd t0, 16(sp)
+    sd a0, 8(sp)
+
+    ld a0, 8(a0)             # go left
+    call insert
+
+    ld t3, 8(sp)
+    sd a0, 8(t3)             # update left
+    addi a0, t3, 0
+
+    ld t0, 16(sp)
+    addi sp, sp, 24
+    ret
+
+equal:
     ret
 
 
 .globl get
 get:
-    test    rdi, rdi
-    jz      get_ret         # NULL => return NULL
+    # a0 = root
+    # a1 = val
 
-    cmp     esi, [rdi]      # compare val with node->val
-    je      get_ret         # found
+    beq a0, zero, not_found
 
-    jl      get_left
+    lw t2, 0(a0)
 
-    mov     rdi, [rdi+16]   # go right
-    jmp     get
+    beq a1, t2, found
+    blt a1, t2, go_left
 
-get_left:
-    mov     rdi, [rdi+8]    # go left
-    jmp     get
+go_right:
+    addi sp, sp, -16
+    sd t0, 8(sp)
 
-get_ret:
-    mov     rax, rdi
+    ld a0, 16(a0)
+    call get
+
+    ld t0, 8(sp)
+    addi sp, sp, 16
+    ret
+
+go_left:
+    addi sp, sp, -16
+    sd t0, 8(sp)
+
+    ld a0, 8(a0)
+    call get
+
+    ld t0, 8(sp)
+    addi sp, sp, 16
+    ret
+
+found:
+    ret
+
+not_found:
+    addi a0, zero, 0
     ret
 
 
 .globl getAtMost
 getAtMost:
-    push    rbx
-    push    r12
-    push    r13
+    # a0 = val
+    # a1 = root
 
-    mov     r12d, edi       # r12d = val
-    mov     rbx, rsi        # rbx  = root
-    mov     r13d, -1        # best = -1
+    addi t2, zero, -1         # t2 = -1
 
 loop:
-    test    rbx, rbx
-    jz      done
+    beq a1, zero, end
 
-    cmp     [rbx], r12d     # node->val vs val
-    jg      go_left2        # node->val > val => go left
+    lw t3, 0(a1)
 
-    mov     r13d, [rbx]     # best = node->val
-    mov     rbx, [rbx+16]   # go right
-    jmp     loop
+    ble t3, a0, new_ans
 
-go_left2:
-    mov     rbx, [rbx+8]    # go left
-    jmp     loop
+    ld a1, 8(a1)              # go left
+    beq zero, zero, loop
 
-done:
-    mov     eax, r13d
-    pop     r13
-    pop     r12
-    pop     rbx
+new_ans:
+    addi t2, t3, 0
+    ld a1, 16(a1)             # go right
+    beq zero, zero, loop
+
+end:
+    addi a0, t2, 0
     ret
